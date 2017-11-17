@@ -9,7 +9,7 @@
 * 线性 SVM 分类器
 * SVM 与核函数
 
-## Section 1: 2D 线性 SVM 分类器
+## Section 1: 线性 SVM 分类器
 首先导入依赖包
 ```
 %matplotlib inline
@@ -38,8 +38,114 @@ for m, b, d in [(1, 0.65, 0.33), (0.5, 1.6, 0.55), (-0.2, 2.9, 0.2)]:
 
 plt.xlim(-1, 3.5);
 ```
-<div align=center><img height="320" src="https://github.com/youngxiao/SVM-demo/raw/master/result/SVM1.png"/></div>
+<div align=center><img height="320" src="https://github.com/youngxiao/SVM-demo/raw/master/reasult/svm1.png"/></div>
 
+```
+from sklearn.svm import SVC
+clf = SVC(kernel='linear')
+clf.fit(X, y)
+
+def plot_svc_decision_function(clf, ax=None):
+    """Plot the decision function for a 2D SVC"""
+    if ax is None:
+        ax = plt.gca()
+    x = np.linspace(plt.xlim()[0], plt.xlim()[1], 30)
+    y = np.linspace(plt.ylim()[0], plt.ylim()[1], 30)
+    Y, X = np.meshgrid(y, x)
+    P = np.zeros_like(X)
+    for i, xi in enumerate(x):
+        for j, yj in enumerate(y):
+            P[i, j] = clf.decision_function([xi, yj])
+    # plot the margins
+    ax.contour(X, Y, P, colors='k',
+               levels=[-1, 0, 1], alpha=0.5,
+               linestyles=['--', '-', '--'])
+
+```
+sklearn的SVM里面会有一个属性support_vectors_，标示“支持向量”，也就是样本点里离超平面最近的点，组成的。
+咱们来画个图，把超平面和支持向量都画出来。
+
+```
+plt.scatter(X[:, 0], X[:, 1], c=y, s=50, cmap='spring')
+plot_svc_decision_function(clf)
+plt.scatter(clf.support_vectors_[:, 0], clf.support_vectors_[:, 1],
+            s=200, facecolors='none');
+```
+<div align=center><img height="320" src="https://github.com/youngxiao/SVM-demo/raw/master/reasult/svm2.png"/></div>
+
+可以用IPython的 `interact` 函数来看看样本点的分布，会怎么样影响超平面:
+```
+from IPython.html.widgets import interact
+
+def plot_svm(N=100):
+    X, y = make_blobs(n_samples=200, centers=2,
+                      random_state=0, cluster_std=0.60)
+    X = X[:N]
+    y = y[:N]
+    clf = SVC(kernel='linear')
+    clf.fit(X, y)
+    plt.scatter(X[:, 0], X[:, 1], c=y, s=50, cmap='spring')
+    plt.xlim(-1, 4)
+    plt.ylim(-1, 6)
+    plot_svc_decision_function(clf, plt.gca())
+    plt.scatter(clf.support_vectors_[:, 0], clf.support_vectors_[:, 1],
+                s=200, facecolors='none')
+    
+interact(plot_svm, N=[10, 200], kernel='linear');
+```
+<div align=center><img height="320" src="https://github.com/youngxiao/SVM-demo/raw/master/reasult/svm3.png"/></div>
+
+
+
+## Section 2: SVM 与 核函数
+对于非线性可切分的数据集，要做分割，就要借助于核函数了简单一点说呢，核函数可以看做对原始特征的一个映射函数，
+不过SVM不会傻乎乎对原始样本点做映射，它有更巧妙的方式来保证这个过程的高效性。
+下面有一个例子，你可以看到，线性的kernel(线性的SVM)对于这种非线性可切分的数据集，是无能为力的。
+```
+from sklearn.datasets.samples_generator import make_circles
+X, y = make_circles(100, factor=.1, noise=.1)
+
+clf = SVC(kernel='linear').fit(X, y)
+
+plt.scatter(X[:, 0], X[:, 1], c=y, s=50, cmap='spring')
+plot_svc_decision_function(clf);
+```
+<div align=center><img height="320" src="https://github.com/youngxiao/SVM-demo/raw/master/reasult/svm4.png"/></div>
+
+然后强大的高斯核/radial basis function就可以大显身手了:
+```
+r = np.exp(-(X[:, 0] ** 2 + X[:, 1] ** 2))
+
+from mpl_toolkits import mplot3d
+
+def plot_3D(elev=30, azim=30):
+    ax = plt.subplot(projection='3d')
+    ax.scatter3D(X[:, 0], X[:, 1], r, c=y, s=50, cmap='spring')
+    ax.view_init(elev=elev, azim=azim)
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_zlabel('r')
+
+interact(plot_3D, elev=[-90, 90], azip=(-180, 180));
+```
+<div align=center><img height="320" src="https://github.com/youngxiao/SVM-demo/raw/master/reasult/svm5.png"/></div>
+
+你在上面的图上也可以看到，原本在2维空间无法切分的2类点，映射到3维空间以后，可以由一个平面轻松地切开了。
+而带rbf核的SVM就能帮你做到这一点:
+```
+clf = SVC(kernel='rbf')
+clf.fit(X, y)
+
+plt.scatter(X[:, 0], X[:, 1], c=y, s=50, cmap='spring')
+plot_svc_decision_function(clf)
+plt.scatter(clf.support_vectors_[:, 0], clf.support_vectors_[:, 1],
+            s=200, facecolors='none');
+```
+<div align=center><img height="320" src="https://github.com/youngxiao/SVM-demo/raw/master/reasult/svm6.png"/></div>
+
+## 关于SVM的总结:
+* 除掉我们说的核函数选择，你在使用SVM的时候，一定要注意合适的参数设置，比如sklearn里面的c和gamma。你可以借助于交叉验证，在交叉验证集上选出效果最好的参数。
+* 很遗憾的是，SVM是O(n^3)的时间复杂度。在sklearn里，LinearSVC是可扩展的(也就是对海量数据也可以支持得不错), 对特别大的数据集SVC就略微有点尴尬了。不过对于特别大的数据集，你倒是可以试试采样一些样本出来，然后用rbf核的SVC来做做分类。
 
 ## 依赖的 packages
 * matplotlib
