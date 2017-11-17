@@ -149,7 +149,7 @@ plt.scatter(clf.support_vectors_[:, 0], clf.support_vectors_[:, 1],
 
 ## 依赖的 packages
 * matplotlib
-* pandas
+* pylab
 * numpy
 * seaborn
 
